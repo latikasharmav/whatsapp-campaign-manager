@@ -4,3 +4,6 @@ database.sqlite
 *.log
 backups/
 .DS_Store
+nul
+.playwright-mcp/
+backup-before-migration.json

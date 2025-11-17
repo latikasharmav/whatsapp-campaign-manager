@@ -1,135 +1,235 @@
 const sqlite3 = require('sqlite3').verbose();
+const { Pool } = require('pg');
 const path = require('path');
 
+// Determine database type from environment
+const usePostgres = !!process.env.DATABASE_URL;
 const dbPath = path.join(__dirname, 'database.sqlite');
 
 class Database {
   constructor() {
     this.db = null;
+    this.isPostgres = usePostgres;
   }
 
   // Initialize database connection
   async connect() {
-    return new Promise((resolve, reject) => {
-      this.db = new sqlite3.Database(dbPath, (err) => {
-        if (err) {
-          console.error('Error connecting to database:', err);
-          reject(err);
-        } else {
-          console.log('Connected to SQLite database');
-          resolve();
-        }
+    if (this.isPostgres) {
+      // PostgreSQL connection
+      this.db = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: process.env.NODE_ENV === 'production' ? {
+          rejectUnauthorized: false
+        } : false
       });
-    });
+
+      try {
+        await this.db.query('SELECT NOW()');
+        console.log('Connected to PostgreSQL database');
+      } catch (error) {
+        console.error('Error connecting to PostgreSQL:', error);
+        throw error;
+      }
+    } else {
+      // SQLite connection
+      return new Promise((resolve, reject) => {
+        this.db = new sqlite3.Database(dbPath, (err) => {
+          if (err) {
+            console.error('Error connecting to database:', err);
+            reject(err);
+          } else {
+            console.log('Connected to SQLite database');
+            resolve();
+          }
+        });
+      });
+    }
   }
 
   // Initialize database schema
   async initialize() {
-    const queries = [
-      // Groups table
-      `CREATE TABLE IF NOT EXISTS groups (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        whatsapp_link TEXT NOT NULL,
-        capacity INTEGER DEFAULT 1000,
-        current_count INTEGER DEFAULT 0,
-        is_active BOOLEAN DEFAULT 1,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )`,
+    if (this.isPostgres) {
+      const queries = [
+        // Groups table
+        `CREATE TABLE IF NOT EXISTS groups (
+          id SERIAL PRIMARY KEY,
+          name TEXT NOT NULL,
+          whatsapp_link TEXT NOT NULL,
+          capacity INTEGER DEFAULT 1000,
+          current_count INTEGER DEFAULT 0,
+          is_active BOOLEAN DEFAULT true,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`,
 
-      // Scans table
-      `CREATE TABLE IF NOT EXISTS scans (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        group_id INTEGER,
-        ip_address TEXT,
-        user_agent TEXT,
-        scan_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        referred_from TEXT,
-        FOREIGN KEY (group_id) REFERENCES groups(id)
-      )`,
+        // Scans table
+        `CREATE TABLE IF NOT EXISTS scans (
+          id SERIAL PRIMARY KEY,
+          group_id INTEGER REFERENCES groups(id),
+          ip_address TEXT,
+          user_agent TEXT,
+          scan_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          referred_from TEXT
+        )`,
 
-      // Settings table
-      `CREATE TABLE IF NOT EXISTS settings (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        key TEXT UNIQUE NOT NULL,
-        value TEXT,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )`,
+        // Settings table
+        `CREATE TABLE IF NOT EXISTS settings (
+          id SERIAL PRIMARY KEY,
+          key TEXT UNIQUE NOT NULL,
+          value TEXT,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`,
 
-      // Create indexes for better performance
-      `CREATE INDEX IF NOT EXISTS idx_scans_group_id ON scans(group_id)`,
-      `CREATE INDEX IF NOT EXISTS idx_scans_time ON scans(scan_time)`,
-      `CREATE INDEX IF NOT EXISTS idx_groups_active ON groups(is_active)`
-    ];
+        // Create indexes for better performance
+        `CREATE INDEX IF NOT EXISTS idx_scans_group_id ON scans(group_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_scans_time ON scans(scan_time)`,
+        `CREATE INDEX IF NOT EXISTS idx_groups_active ON groups(is_active)`
+      ];
 
-    for (const query of queries) {
-      await this.run(query);
+      for (const query of queries) {
+        await this.run(query);
+      }
+    } else {
+      const queries = [
+        // Groups table
+        `CREATE TABLE IF NOT EXISTS groups (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          whatsapp_link TEXT NOT NULL,
+          capacity INTEGER DEFAULT 1000,
+          current_count INTEGER DEFAULT 0,
+          is_active BOOLEAN DEFAULT 1,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`,
+
+        // Scans table
+        `CREATE TABLE IF NOT EXISTS scans (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          group_id INTEGER,
+          ip_address TEXT,
+          user_agent TEXT,
+          scan_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          referred_from TEXT,
+          FOREIGN KEY (group_id) REFERENCES groups(id)
+        )`,
+
+        // Settings table
+        `CREATE TABLE IF NOT EXISTS settings (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          key TEXT UNIQUE NOT NULL,
+          value TEXT,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`,
+
+        // Create indexes for better performance
+        `CREATE INDEX IF NOT EXISTS idx_scans_group_id ON scans(group_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_scans_time ON scans(scan_time)`,
+        `CREATE INDEX IF NOT EXISTS idx_groups_active ON groups(is_active)`
+      ];
+
+      for (const query of queries) {
+        await this.run(query);
+      }
     }
 
     console.log('Database schema initialized');
   }
 
   // Run a query
-  run(sql, params = []) {
-    return new Promise((resolve, reject) => {
-      this.db.run(sql, params, function(err) {
-        if (err) {
-          console.error('Error running query:', err);
-          reject(err);
-        } else {
-          resolve({ id: this.lastID, changes: this.changes });
-        }
+  async run(sql, params = []) {
+    if (this.isPostgres) {
+      const result = await this.db.query(sql, params);
+      return { id: result.rows[0]?.id, changes: result.rowCount };
+    } else {
+      return new Promise((resolve, reject) => {
+        this.db.run(sql, params, function(err) {
+          if (err) {
+            console.error('Error running query:', err);
+            reject(err);
+          } else {
+            resolve({ id: this.lastID, changes: this.changes });
+          }
+        });
       });
-    });
+    }
   }
 
   // Get single row
-  get(sql, params = []) {
-    return new Promise((resolve, reject) => {
-      this.db.get(sql, params, (err, row) => {
-        if (err) {
-          console.error('Error getting row:', err);
-          reject(err);
-        } else {
-          resolve(row);
-        }
+  async get(sql, params = []) {
+    if (this.isPostgres) {
+      // Convert ? placeholders to $1, $2, etc.
+      let pgSql = sql;
+      let paramIndex = 1;
+      while (pgSql.includes('?')) {
+        pgSql = pgSql.replace('?', `$${paramIndex}`);
+        paramIndex++;
+      }
+      const result = await this.db.query(pgSql, params);
+      return result.rows[0];
+    } else {
+      return new Promise((resolve, reject) => {
+        this.db.get(sql, params, (err, row) => {
+          if (err) {
+            console.error('Error getting row:', err);
+            reject(err);
+          } else {
+            resolve(row);
+          }
+        });
       });
-    });
+    }
   }
 
   // Get all rows
-  all(sql, params = []) {
-    return new Promise((resolve, reject) => {
-      this.db.all(sql, params, (err, rows) => {
-        if (err) {
-          console.error('Error getting rows:', err);
-          reject(err);
-        } else {
-          resolve(rows);
-        }
+  async all(sql, params = []) {
+    if (this.isPostgres) {
+      // Convert ? placeholders to $1, $2, etc.
+      let pgSql = sql;
+      let paramIndex = 1;
+      while (pgSql.includes('?')) {
+        pgSql = pgSql.replace('?', `$${paramIndex}`);
+        paramIndex++;
+      }
+      const result = await this.db.query(pgSql, params);
+      return result.rows;
+    } else {
+      return new Promise((resolve, reject) => {
+        this.db.all(sql, params, (err, rows) => {
+          if (err) {
+            console.error('Error getting rows:', err);
+            reject(err);
+          } else {
+            resolve(rows);
+          }
+        });
       });
-    });
+    }
   }
 
   // Close database connection
-  close() {
-    return new Promise((resolve, reject) => {
-      this.db.close((err) => {
-        if (err) {
-          reject(err);
-        } else {
-          console.log('Database connection closed');
-          resolve();
-        }
+  async close() {
+    if (this.isPostgres) {
+      await this.db.end();
+      console.log('PostgreSQL connection closed');
+    } else {
+      return new Promise((resolve, reject) => {
+        this.db.close((err) => {
+          if (err) {
+            reject(err);
+          } else {
+            console.log('Database connection closed');
+            resolve();
+          }
+        });
       });
-    });
+    }
   }
 
   // Group operations
   async getActiveGroups() {
-    return this.all(
-      'SELECT * FROM groups WHERE is_active = 1 ORDER BY current_count ASC'
-    );
+    const sql = this.isPostgres
+      ? 'SELECT * FROM groups WHERE is_active = true ORDER BY current_count ASC'
+      : 'SELECT * FROM groups WHERE is_active = 1 ORDER BY current_count ASC';
+    return this.all(sql);
   }
 
   async getGroupById(id) {
@@ -141,10 +241,18 @@ class Database {
   }
 
   async addGroup(name, whatsappLink, capacity) {
-    return this.run(
-      'INSERT INTO groups (name, whatsapp_link, capacity) VALUES (?, ?, ?)',
-      [name, whatsappLink, capacity]
-    );
+    if (this.isPostgres) {
+      const result = await this.db.query(
+        'INSERT INTO groups (name, whatsapp_link, capacity) VALUES ($1, $2, $3) RETURNING id',
+        [name, whatsappLink, capacity]
+      );
+      return { id: result.rows[0].id };
+    } else {
+      return this.run(
+        'INSERT INTO groups (name, whatsapp_link, capacity) VALUES (?, ?, ?)',
+        [name, whatsappLink, capacity]
+      );
+    }
   }
 
   async updateGroup(id, name, whatsappLink, capacity, isActive) {
@@ -170,10 +278,17 @@ class Database {
   }
 
   async toggleGroupStatus(id) {
-    return this.run(
-      'UPDATE groups SET is_active = NOT is_active WHERE id = ?',
-      [id]
-    );
+    if (this.isPostgres) {
+      return this.run(
+        'UPDATE groups SET is_active = NOT is_active WHERE id = $1',
+        [id]
+      );
+    } else {
+      return this.run(
+        'UPDATE groups SET is_active = NOT is_active WHERE id = ?',
+        [id]
+      );
+    }
   }
 
   // Scan operations
@@ -204,32 +319,52 @@ class Database {
 
   async getTotalScans() {
     const result = await this.get('SELECT COUNT(*) as count FROM scans');
-    return result.count;
+    return result.count || 0;
   }
 
   async getUniqueIPs() {
     const result = await this.get('SELECT COUNT(DISTINCT ip_address) as count FROM scans');
-    return result.count;
+    return result.count || 0;
   }
 
   async getScansPerDay(days = 7) {
-    return this.all(
-      `SELECT DATE(scan_time) as date, COUNT(*) as count
-       FROM scans
-       WHERE scan_time >= datetime('now', '-${days} days')
-       GROUP BY DATE(scan_time)
-       ORDER BY date DESC`
-    );
+    if (this.isPostgres) {
+      return this.all(
+        `SELECT DATE(scan_time) as date, COUNT(*) as count
+         FROM scans
+         WHERE scan_time >= NOW() - INTERVAL '${days} days'
+         GROUP BY DATE(scan_time)
+         ORDER BY date DESC`
+      );
+    } else {
+      return this.all(
+        `SELECT DATE(scan_time) as date, COUNT(*) as count
+         FROM scans
+         WHERE scan_time >= datetime('now', '-${days} days')
+         GROUP BY DATE(scan_time)
+         ORDER BY date DESC`
+      );
+    }
   }
 
   async getScansPerHour(hours = 24) {
-    return this.all(
-      `SELECT strftime('%Y-%m-%d %H:00:00', scan_time) as hour, COUNT(*) as count
-       FROM scans
-       WHERE scan_time >= datetime('now', '-${hours} hours')
-       GROUP BY hour
-       ORDER BY hour DESC`
-    );
+    if (this.isPostgres) {
+      return this.all(
+        `SELECT DATE_TRUNC('hour', scan_time) as hour, COUNT(*) as count
+         FROM scans
+         WHERE scan_time >= NOW() - INTERVAL '${hours} hours'
+         GROUP BY DATE_TRUNC('hour', scan_time)
+         ORDER BY hour DESC`
+      );
+    } else {
+      return this.all(
+        `SELECT strftime('%Y-%m-%d %H:00:00', scan_time) as hour, COUNT(*) as count
+         FROM scans
+         WHERE scan_time >= datetime('now', '-${hours} hours')
+         GROUP BY hour
+         ORDER BY hour DESC`
+      );
+    }
   }
 
   async getTopGroups(limit = 5) {
@@ -237,7 +372,7 @@ class Database {
       `SELECT g.name, g.id, COUNT(s.id) as scan_count
        FROM groups g
        LEFT JOIN scans s ON g.id = s.group_id
-       GROUP BY g.id
+       GROUP BY g.id, g.name
        ORDER BY scan_count DESC
        LIMIT ?`,
       [limit]
@@ -263,20 +398,41 @@ class Database {
   }
 
   async setSetting(key, value) {
-    return this.run(
-      `INSERT INTO settings (key, value, updated_at)
-       VALUES (?, ?, CURRENT_TIMESTAMP)
-       ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP`,
-      [key, value, value]
-    );
+    if (this.isPostgres) {
+      return this.db.query(
+        `INSERT INTO settings (key, value, updated_at)
+         VALUES ($1, $2, CURRENT_TIMESTAMP)
+         ON CONFLICT(key) DO UPDATE SET value = $2, updated_at = CURRENT_TIMESTAMP`,
+        [key, value]
+      );
+    } else {
+      return this.run(
+        `INSERT INTO settings (key, value, updated_at)
+         VALUES (?, ?, CURRENT_TIMESTAMP)
+         ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP`,
+        [key, value, value]
+      );
+    }
   }
 
   // Analytics
   async getDashboardStats() {
     const totalGroups = await this.get('SELECT COUNT(*) as count FROM groups');
-    const activeGroups = await this.get('SELECT COUNT(*) as count FROM groups WHERE is_active = 1');
-    const totalCapacity = await this.get('SELECT SUM(capacity) as total FROM groups WHERE is_active = 1');
-    const currentMembers = await this.get('SELECT SUM(current_count) as total FROM groups WHERE is_active = 1');
+    const activeGroupsSql = this.isPostgres
+      ? 'SELECT COUNT(*) as count FROM groups WHERE is_active = true'
+      : 'SELECT COUNT(*) as count FROM groups WHERE is_active = 1';
+    const activeGroups = await this.get(activeGroupsSql);
+
+    const totalCapacitySql = this.isPostgres
+      ? 'SELECT SUM(capacity) as total FROM groups WHERE is_active = true'
+      : 'SELECT SUM(capacity) as total FROM groups WHERE is_active = 1';
+    const totalCapacity = await this.get(totalCapacitySql);
+
+    const currentMembersSql = this.isPostgres
+      ? 'SELECT SUM(current_count) as total FROM groups WHERE is_active = true'
+      : 'SELECT SUM(current_count) as total FROM groups WHERE is_active = 1';
+    const currentMembers = await this.get(currentMembersSql);
+
     const totalScans = await this.getTotalScans();
     const uniqueIPs = await this.getUniqueIPs();
 
