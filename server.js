@@ -213,7 +213,14 @@ app.post('/admin/login', adminLimiter, (req, res) => {
 
   if (password === process.env.ADMIN_PASSWORD) {
     req.session.authenticated = true;
-    res.json({ success: true });
+    // Explicitly save session to ensure it persists
+    req.session.save((err) => {
+      if (err) {
+        console.error('Session save error:', err);
+        return res.status(500).json({ success: false, error: 'Session error' });
+      }
+      res.json({ success: true });
+    });
   } else {
     res.status(401).json({ success: false, error: 'Invalid password' });
   }
