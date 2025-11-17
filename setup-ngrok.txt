@@ -1,0 +1,35 @@
+# Setup ngrok (Better Alternative - No Password Screen!)
+
+## Step 1: Get Your Auth Token
+
+1. Go to: https://dashboard.ngrok.com/signup
+2. Sign up with email (free account)
+3. After login, you'll see: "Your Authtoken"
+4. Copy it (looks like: 2abc123def456...)
+
+## Step 2: Configure ngrok
+
+Open Command Prompt in project folder and run:
+
+cd "C:\Users\ravi\Documents\WhatsAppProject"
+./ngrok.exe config add-authtoken YOUR_TOKEN_HERE
+
+(Replace YOUR_TOKEN_HERE with your actual token)
+
+## Step 3: Start ngrok
+
+./ngrok.exe http 3000
+
+You'll see output like:
+Forwarding: https://abc123.ngrok.io -> http://localhost:3000
+
+## Step 4: Update .env
+
+Copy the https URL (e.g., https://abc123.ngrok.io)
+Update DOMAIN_URL in .env file
+Restart server
+
+## Done!
+
+Now your URL will be cleaner and NO password screen!
+Just share: https://abc123.ngrok.io/join

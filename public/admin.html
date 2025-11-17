@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel - WhatsApp Campaign Manager</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Login Screen -->
+  <div id="loginScreen" class="login-screen">
+    <div class="login-container">
+      <div class="login-header">
+        <div class="whatsapp-icon">📱</div>
+        <h1>WhatsApp Campaign Manager</h1>
+        <p>Admin Panel</p>
+      </div>
+      <form id="loginForm" class="login-form">
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" required autofocus>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Login</button>
+        <div id="loginError" class="error-message" style="display: none;"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Main Admin Panel -->
+  <div id="adminPanel" class="admin-panel" style="display: none;">
+    <!-- Navigation -->
+    <nav class="navbar">
+      <div class="navbar-brand">
+        <span class="nav-icon">📱</span>
+        <span class="nav-title">WhatsApp Campaign Manager</span>
+      </div>
+      <div class="navbar-menu">
+        <a href="#" class="nav-link active" data-page="dashboard">
+          <span class="nav-icon">📊</span>
+          Dashboard
+        </a>
+        <a href="#" class="nav-link" data-page="groups">
+          <span class="nav-icon">👥</span>
+          Groups
+        </a>
+        <a href="#" class="nav-link" data-page="analytics">
+          <span class="nav-icon">📈</span>
+          Analytics
+        </a>
+        <a href="#" class="nav-link" data-page="qrcode">
+          <span class="nav-icon">📷</span>
+          QR Code
+        </a>
+        <button id="logoutBtn" class="btn btn-logout">
+          <span class="nav-icon">🚪</span>
+          Logout
+        </button>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Dashboard Page -->
+      <div id="dashboardPage" class="page active">
+        <div class="page-header">
+          <h2>Dashboard</h2>
+          <button id="refreshStats" class="btn btn-secondary">🔄 Refresh</button>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon">👥</div>
+            <div class="stat-details">
+              <div class="stat-label">Total Groups</div>
+              <div class="stat-value" id="totalGroups">0</div>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon">✅</div>
+            <div class="stat-details">
+              <div class="stat-label">Active Groups</div>
+              <div class="stat-value" id="activeGroups">0</div>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon">📊</div>
+            <div class="stat-details">
+              <div class="stat-label">Total Capacity</div>
+              <div class="stat-value" id="totalCapacity">0</div>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon">👤</div>
+            <div class="stat-details">
+              <div class="stat-label">Current Members</div>
+              <div class="stat-value" id="currentMembers">0</div>
+            </div>
+          </div>
+
+          <div class="stat-card stat-card-highlight">
+            <div class="stat-icon">📈</div>
+            <div class="stat-details">
+              <div class="stat-label">Fill Rate</div>
+              <div class="stat-value" id="fillRate">0%</div>
+              <div class="progress-bar">
+                <div class="progress-fill" id="fillProgress"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon">🔗</div>
+            <div class="stat-details">
+              <div class="stat-label">Total Scans</div>
+              <div class="stat-value" id="totalScans">0</div>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon">🌐</div>
+            <div class="stat-details">
+              <div class="stat-label">Unique Visitors</div>
+              <div class="stat-value" id="uniqueIPs">0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Scans -->
+        <div class="section">
+          <h3>Recent Scans</h3>
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Group</th>
+                  <th>IP Address</th>
+                  <th>Device</th>
+                </tr>
+              </thead>
+              <tbody id="recentScansTable">
+                <tr>
+                  <td colspan="4" class="text-center">Loading...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Groups Page -->
+      <div id="groupsPage" class="page">
+        <div class="page-header">
+          <h2>Groups Management</h2>
+          <button id="addGroupBtn" class="btn btn-primary">➕ Add Group</button>
+        </div>
+
+        <div id="groupsList" class="groups-grid">
+          <!-- Groups will be loaded here -->
+        </div>
+      </div>
+
+      <!-- Analytics Page -->
+      <div id="analyticsPage" class="page">
+        <div class="page-header">
+          <h2>Analytics</h2>
+          <button id="exportData" class="btn btn-secondary">💾 Export Data</button>
+        </div>
+
+        <div class="analytics-grid">
+          <div class="chart-container">
+            <h3>Scans Per Day (Last 7 Days)</h3>
+            <canvas id="scansPerDayChart"></canvas>
+          </div>
+
+          <div class="chart-container">
+            <h3>Scans Per Hour (Last 24 Hours)</h3>
+            <canvas id="scansPerHourChart"></canvas>
+          </div>
+
+          <div class="chart-container">
+            <h3>Top Performing Groups</h3>
+            <canvas id="topGroupsChart"></canvas>
+          </div>
+
+          <div class="chart-container">
+            <h3>Device Breakdown</h3>
+            <canvas id="deviceChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- QR Code Page -->
+      <div id="qrcodePage" class="page">
+        <div class="page-header">
+          <h2>QR Code Generator</h2>
+        </div>
+
+        <div class="qrcode-container">
+          <div class="qrcode-options">
+            <h3>QR Code Settings</h3>
+            <div class="form-group">
+              <label>Size</label>
+              <select id="qrSize" class="form-control">
+                <option value="small">Small (200x200)</option>
+                <option value="medium" selected>Medium (400x400)</option>
+                <option value="large">Large (600x600)</option>
+              </select>
+            </div>
+            <button id="generateQR" class="btn btn-primary">Generate QR Code</button>
+          </div>
+
+          <div class="qrcode-display">
+            <div id="qrCodeImage" class="qr-placeholder">
+              <div class="qr-placeholder-text">Click "Generate QR Code" to create</div>
+            </div>
+            <div id="qrCodeUrl" class="qr-url"></div>
+            <button id="downloadQR" class="btn btn-secondary" style="display: none;">Download QR Code</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Add/Edit Group Modal -->
+  <div id="groupModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modalTitle">Add New Group</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <form id="groupForm">
+        <input type="hidden" id="groupId">
+        <div class="form-group">
+          <label for="groupName">Group Name *</label>
+          <input type="text" id="groupName" required placeholder="e.g., Campaign Delhi Group 1">
+        </div>
+        <div class="form-group">
+          <label for="whatsappLink">WhatsApp Link *</label>
+          <input type="url" id="whatsappLink" required placeholder="https://chat.whatsapp.com/...">
+          <small>Get the invite link from WhatsApp group settings</small>
+        </div>
+        <div class="form-group">
+          <label for="groupCapacity">Capacity *</label>
+          <input type="number" id="groupCapacity" required min="1" max="1024" value="1000">
+          <small>Maximum: 1024 (WhatsApp group limit)</small>
+        </div>
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="groupActive" checked>
+            <span>Active (accepting new members)</span>
+          </label>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary modal-close">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Group</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast"></div>
+
+  <!-- Loading Overlay -->
+  <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+    <div class="spinner"></div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

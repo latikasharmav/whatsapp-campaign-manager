@@ -1,0 +1,2 @@
+- hostinger.in hosting details. username latika.sharmav@gmail.com password Sri#Vinci@987
+- github/railway login credentials username latika.sharmav@gmail.com password Sri#Vinci@987
