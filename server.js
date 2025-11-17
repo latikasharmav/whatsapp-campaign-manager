@@ -12,6 +12,9 @@ const db = require('./database');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust proxy - required for Railway/Heroku and other proxy environments
+app.set('trust proxy', 1);
+
 // Initialize database
 async function initializeDatabase() {
   try {
