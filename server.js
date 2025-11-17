@@ -356,6 +356,55 @@ app.get('/admin/export', requireAuth, async (req, res) => {
   }
 });
 
+// Import data (for PostgreSQL migration)
+app.post('/admin/import', requireAuth, async (req, res) => {
+  try {
+    const { groups, scans, settings } = req.body;
+
+    if (!groups || !Array.isArray(groups)) {
+      return res.status(400).json({ error: 'Invalid data format' });
+    }
+
+    let imported = { groups: 0, scans: 0, settings: 0 };
+
+    // Import groups
+    for (const group of groups) {
+      await db.addGroup(group.name, group.whatsapp_link, group.capacity);
+      if (group.current_count > 0) {
+        // Update count if needed
+        const newGroup = await db.getAllGroups();
+        const lastGroup = newGroup[0];
+        await db.run(
+          'UPDATE groups SET current_count = ?, is_active = ?, created_at = ? WHERE id = ?',
+          [group.current_count, group.is_active, group.created_at, lastGroup.id]
+        );
+      }
+      imported.groups++;
+    }
+
+    // Import scans
+    if (scans && Array.isArray(scans)) {
+      for (const scan of scans) {
+        await db.addScan(scan.group_id, scan.ip_address, scan.user_agent, scan.referred_from);
+        imported.scans++;
+      }
+    }
+
+    // Import settings
+    if (settings && Array.isArray(settings)) {
+      for (const setting of settings) {
+        await db.setSetting(setting.key, setting.value);
+        imported.settings++;
+      }
+    }
+
+    res.json({ success: true, imported });
+  } catch (error) {
+    console.error('Import error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // QR Code generation
 const QRCode = require('qrcode');
 
