@@ -165,8 +165,108 @@ app.get('/join', joinLimiter, async (req, res) => {
     // Increment group count
     await db.incrementGroupCount(targetGroup.id);
 
-    // Redirect to WhatsApp group
-    res.redirect(targetGroup.whatsapp_link);
+    // Log redirect for debugging
+    console.log(`[JOIN] Redirecting to WhatsApp group: ${targetGroup.name}`);
+    console.log(`[JOIN] WhatsApp URL: ${targetGroup.whatsapp_link}`);
+    console.log(`[JOIN] User Agent: ${userAgent}`);
+    console.log(`[JOIN] IP: ${ipAddress}`);
+
+    // Safari-friendly redirect with HTML fallback
+    // Using meta refresh for better iOS/Safari compatibility
+    res.send(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="refresh" content="0; url=${targetGroup.whatsapp_link}">
+        <title>Redirecting to WhatsApp...</title>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+          }
+          .container {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            text-align: center;
+            max-width: 500px;
+          }
+          h1 {
+            color: #128C7E;
+            margin-bottom: 20px;
+            font-size: 24px;
+          }
+          p {
+            color: #666;
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+          }
+          .icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+            animation: pulse 1.5s ease-in-out infinite;
+          }
+          .button {
+            display: inline-block;
+            background: #25D366;
+            color: white;
+            padding: 15px 30px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 18px;
+            margin-top: 20px;
+            transition: background 0.3s;
+          }
+          .button:hover {
+            background: #128C7E;
+          }
+          @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+          }
+          .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #25D366;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+          }
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="icon">💬</div>
+          <h1>Redirecting to WhatsApp Group...</h1>
+          <div class="spinner"></div>
+          <p>You're being redirected to the WhatsApp group.</p>
+          <p>If you're not redirected automatically, please click the button below:</p>
+          <a href="${targetGroup.whatsapp_link}" class="button">Open WhatsApp Group</a>
+        </div>
+        <script>
+          // Fallback JavaScript redirect for extra compatibility
+          setTimeout(function() {
+            window.location.href = "${targetGroup.whatsapp_link}";
+          }, 100);
+        </script>
+      </body>
+      </html>
+    `);
 
   } catch (error) {
     console.error('Error in join endpoint:', error);
