@@ -96,11 +96,11 @@ app.get('/health', async (req, res) => {
   }
 });
 
-// Main redirect endpoint
-app.get('/join', joinLimiter, async (req, res) => {
+// Shared join handler function for all campaigns
+async function handleJoin(req, res, campaign) {
   try {
-    // Get all active groups with available capacity
-    const groups = await db.getActiveGroups();
+    // Get all active groups for this campaign with available capacity
+    const groups = await db.getActiveGroups(campaign);
 
     // Find first group with available capacity
     let targetGroup = null;
@@ -166,13 +166,13 @@ app.get('/join', joinLimiter, async (req, res) => {
     await db.incrementGroupCount(targetGroup.id);
 
     // Log redirect for debugging
+    console.log(`[JOIN] Campaign: ${campaign}`);
     console.log(`[JOIN] Redirecting to WhatsApp group: ${targetGroup.name}`);
     console.log(`[JOIN] WhatsApp URL: ${targetGroup.whatsapp_link}`);
     console.log(`[JOIN] User Agent: ${userAgent}`);
     console.log(`[JOIN] IP: ${ipAddress}`);
 
     // Safari-friendly redirect with HTML fallback
-    // Using meta refresh for better iOS/Safari compatibility
     res.send(`
       <!DOCTYPE html>
       <html lang="en">
@@ -259,7 +259,6 @@ app.get('/join', joinLimiter, async (req, res) => {
           <a href="${targetGroup.whatsapp_link}" class="button">Open WhatsApp Group</a>
         </div>
         <script>
-          // Fallback JavaScript redirect for extra compatibility
           setTimeout(function() {
             window.location.href = "${targetGroup.whatsapp_link}";
           }, 100);
@@ -308,6 +307,17 @@ app.get('/join', joinLimiter, async (req, res) => {
       </html>
     `);
   }
+}
+
+// Main redirect endpoint - defaults to puducherry for backward compatibility
+app.get('/join', joinLimiter, async (req, res) => {
+  await handleJoin(req, res, 'puducherry');
+});
+
+// Campaign-specific join endpoint (e.g., /join/tamilnadu)
+app.get('/join/:campaign', joinLimiter, async (req, res) => {
+  const campaign = req.params.campaign.toLowerCase();
+  await handleJoin(req, res, campaign);
 });
 
 // Admin login endpoint
@@ -356,10 +366,23 @@ app.get('/admin/stats', requireAuth, async (req, res) => {
   }
 });
 
+// Get list of all campaigns
+app.get('/admin/campaigns', requireAuth, async (req, res) => {
+  try {
+    const campaigns = await db.getCampaigns();
+    // Always include default campaigns even if no groups exist
+    const allCampaigns = [...new Set(['puducherry', 'tamilnadu', ...campaigns])];
+    res.json(allCampaigns);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Groups management
 app.get('/admin/groups', requireAuth, async (req, res) => {
   try {
-    const groups = await db.getAllGroups();
+    const { campaign } = req.query;
+    const groups = await db.getAllGroups(campaign || null);
     res.json(groups);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -368,13 +391,13 @@ app.get('/admin/groups', requireAuth, async (req, res) => {
 
 app.post('/admin/groups', requireAuth, async (req, res) => {
   try {
-    const { name, whatsappLink, capacity } = req.body;
+    const { name, whatsappLink, capacity, campaign = 'puducherry' } = req.body;
 
     if (!name || !whatsappLink || !capacity) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const result = await db.addGroup(name, whatsappLink, parseInt(capacity));
+    const result = await db.addGroup(name, whatsappLink, parseInt(capacity), campaign.toLowerCase());
     res.json({ success: true, id: result.id });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -384,9 +407,9 @@ app.post('/admin/groups', requireAuth, async (req, res) => {
 app.put('/admin/groups/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, whatsappLink, capacity, isActive } = req.body;
+    const { name, whatsappLink, capacity, isActive, campaign } = req.body;
 
-    await db.updateGroup(id, name, whatsappLink, parseInt(capacity), isActive ? 1 : 0);
+    await db.updateGroup(id, name, whatsappLink, parseInt(capacity), isActive ? 1 : 0, campaign || null);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -510,8 +533,12 @@ const QRCode = require('qrcode');
 
 app.get('/admin/qrcode', requireAuth, async (req, res) => {
   try {
-    const { size = 'medium' } = req.query;
-    const url = `${process.env.DOMAIN_URL}/join`;
+    const { size = 'medium', campaign = 'puducherry' } = req.query;
+    // For puducherry, use /join (backward compatible)
+    // For other campaigns, use /join/:campaign
+    const url = campaign.toLowerCase() === 'puducherry'
+      ? `${process.env.DOMAIN_URL}/join`
+      : `${process.env.DOMAIN_URL}/join/${campaign.toLowerCase()}`;
 
     const sizeMap = {
       small: 200,

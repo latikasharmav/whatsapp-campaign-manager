@@ -2,6 +2,7 @@
 let currentPage = 'dashboard';
 let groups = [];
 let charts = {};
+let currentCampaignFilter = '';
 
 // DOM Elements
 const loginScreen = document.getElementById('loginScreen');
@@ -88,6 +89,12 @@ function setupEventListeners() {
   // QR Code generation
   document.getElementById('generateQR')?.addEventListener('click', generateQRCode);
   document.getElementById('downloadQR')?.addEventListener('click', downloadQRCode);
+
+  // Campaign filter
+  document.getElementById('campaignFilter')?.addEventListener('change', (e) => {
+    currentCampaignFilter = e.target.value;
+    loadGroups();
+  });
 
   // Export data
   document.getElementById('exportData')?.addEventListener('click', exportData);
@@ -238,7 +245,10 @@ function updateRecentScans(scans) {
 async function loadGroups() {
   try {
     showLoading();
-    const response = await fetch('/admin/groups');
+    const url = currentCampaignFilter
+      ? `/admin/groups?campaign=${currentCampaignFilter}`
+      : '/admin/groups';
+    const response = await fetch(url);
     groups = await response.json();
 
     displayGroups(groups);
@@ -264,12 +274,15 @@ function displayGroups(groups) {
     const isFull = group.current_count >= group.capacity;
     const statusClass = !group.is_active ? 'status-inactive' : isFull ? 'status-full' : 'status-active';
     const statusText = !group.is_active ? 'Inactive' : isFull ? 'Full' : 'Active';
+    const campaignName = group.campaign || 'puducherry';
+    const campaignDisplay = campaignName.charAt(0).toUpperCase() + campaignName.slice(1);
 
     return `
       <div class="group-card">
         <div class="group-header">
           <div>
             <div class="group-name">${escapeHtml(group.name)}</div>
+            <span class="campaign-badge campaign-${campaignName}">${campaignDisplay}</span>
           </div>
           <span class="group-status ${statusClass}">${statusText}</span>
         </div>
@@ -326,6 +339,7 @@ async function openGroupModal(groupId = null) {
     if (group) {
       modalTitle.textContent = 'Edit Group';
       document.getElementById('groupId').value = group.id;
+      document.getElementById('groupCampaign').value = group.campaign || 'puducherry';
       document.getElementById('groupName').value = group.name;
       document.getElementById('whatsappLink').value = group.whatsapp_link;
       document.getElementById('groupCapacity').value = group.capacity;
@@ -335,6 +349,8 @@ async function openGroupModal(groupId = null) {
     // Add mode
     modalTitle.textContent = 'Add New Group';
     document.getElementById('groupId').value = '';
+    // Pre-select current filter campaign for convenience
+    document.getElementById('groupCampaign').value = currentCampaignFilter || 'puducherry';
     document.getElementById('groupActive').checked = true;
   }
 
@@ -353,6 +369,7 @@ async function handleGroupSubmit(e) {
   e.preventDefault();
 
   const groupId = document.getElementById('groupId').value;
+  const campaign = document.getElementById('groupCampaign').value;
   const name = document.getElementById('groupName').value;
   const whatsappLink = document.getElementById('whatsappLink').value;
   const capacity = parseInt(document.getElementById('groupCapacity').value);
@@ -367,7 +384,7 @@ async function handleGroupSubmit(e) {
     const response = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, whatsappLink, capacity, isActive })
+      body: JSON.stringify({ name, whatsappLink, capacity, isActive, campaign })
     });
 
     const data = await response.json();
@@ -630,20 +647,27 @@ function createCharts(data) {
 // Generate QR Code
 async function generateQRCode() {
   const size = document.getElementById('qrSize').value;
+  const campaign = document.getElementById('qrCampaign').value;
 
   try {
     showLoading();
-    const response = await fetch(`/admin/qrcode?size=${size}`);
+    const response = await fetch(`/admin/qrcode?size=${size}&campaign=${campaign}`);
     const data = await response.json();
 
     const qrCodeImage = document.getElementById('qrCodeImage');
     const qrCodeUrl = document.getElementById('qrCodeUrl');
+    const qrCampaignLabel = document.getElementById('qrCampaignLabel');
     const downloadBtn = document.getElementById('downloadQR');
+
+    const campaignDisplay = campaign.charAt(0).toUpperCase() + campaign.slice(1);
 
     qrCodeImage.innerHTML = `<img src="${data.qrCode}" class="qr-image" alt="QR Code">`;
     qrCodeUrl.textContent = data.url;
+    qrCampaignLabel.textContent = `Campaign: ${campaignDisplay}`;
+    qrCampaignLabel.style.display = 'block';
     downloadBtn.style.display = 'block';
     downloadBtn.setAttribute('data-qr', data.qrCode);
+    downloadBtn.setAttribute('data-campaign', campaign);
 
     showToast('QR Code generated successfully', 'success');
   } catch (error) {
@@ -658,12 +682,13 @@ async function generateQRCode() {
 function downloadQRCode() {
   const downloadBtn = document.getElementById('downloadQR');
   const qrData = downloadBtn.getAttribute('data-qr');
+  const campaign = downloadBtn.getAttribute('data-campaign') || 'campaign';
 
   if (!qrData) return;
 
   const link = document.createElement('a');
   link.href = qrData;
-  link.download = `whatsapp-qr-${Date.now()}.png`;
+  link.download = `whatsapp-qr-${campaign}-${Date.now()}.png`;
   link.click();
 
   showToast('QR Code downloaded', 'success');

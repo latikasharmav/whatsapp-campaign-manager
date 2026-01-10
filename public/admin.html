@@ -156,7 +156,16 @@
       <div id="groupsPage" class="page">
         <div class="page-header">
           <h2>Groups Management</h2>
-          <button id="addGroupBtn" class="btn btn-primary">➕ Add Group</button>
+          <div class="header-controls">
+            <div class="form-group" style="margin: 0; min-width: 150px;">
+              <select id="campaignFilter" class="form-control">
+                <option value="">All Campaigns</option>
+                <option value="puducherry">Puducherry</option>
+                <option value="tamilnadu">Tamil Nadu</option>
+              </select>
+            </div>
+            <button id="addGroupBtn" class="btn btn-primary">➕ Add Group</button>
+          </div>
         </div>
 
         <div id="groupsList" class="groups-grid">
@@ -204,6 +213,14 @@
           <div class="qrcode-options">
             <h3>QR Code Settings</h3>
             <div class="form-group">
+              <label>Campaign *</label>
+              <select id="qrCampaign" class="form-control">
+                <option value="puducherry">Puducherry</option>
+                <option value="tamilnadu">Tamil Nadu</option>
+              </select>
+              <small>Select which campaign this QR code is for</small>
+            </div>
+            <div class="form-group">
               <label>Size</label>
               <select id="qrSize" class="form-control">
                 <option value="small">Small (200x200)</option>
@@ -219,6 +236,7 @@
               <div class="qr-placeholder-text">Click "Generate QR Code" to create</div>
             </div>
             <div id="qrCodeUrl" class="qr-url"></div>
+            <div id="qrCampaignLabel" class="qr-campaign-label" style="display: none;"></div>
             <button id="downloadQR" class="btn btn-secondary" style="display: none;">Download QR Code</button>
           </div>
         </div>
@@ -235,6 +253,14 @@
       </div>
       <form id="groupForm">
         <input type="hidden" id="groupId">
+        <div class="form-group">
+          <label for="groupCampaign">Campaign *</label>
+          <select id="groupCampaign" class="form-control" required>
+            <option value="puducherry">Puducherry</option>
+            <option value="tamilnadu">Tamil Nadu</option>
+          </select>
+          <small>Which campaign does this group belong to?</small>
+        </div>
         <div class="form-group">
           <label for="groupName">Group Name *</label>
           <input type="text" id="groupName" required placeholder="e.g., Campaign Delhi Group 1">

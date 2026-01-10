@@ -478,6 +478,47 @@ select:focus,
   margin-bottom: 5px;
 }
 
+/* Campaign Badges */
+.campaign-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-top: 5px;
+}
+
+.campaign-puducherry {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.campaign-tamilnadu {
+  background: #fce4ec;
+  color: #c2185b;
+}
+
+/* Header Controls */
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+/* QR Campaign Label */
+.qr-campaign-label {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--whatsapp-dark);
+  margin-bottom: 15px;
+  padding: 10px 20px;
+  background: linear-gradient(135deg, var(--whatsapp-light), #e8f5e9);
+  border-radius: 8px;
+  display: inline-block;
+}
+
 .group-status {
   padding: 5px 12px;
   border-radius: 20px;

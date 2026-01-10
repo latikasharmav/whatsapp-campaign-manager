@@ -58,6 +58,7 @@ class Database {
           capacity INTEGER DEFAULT 1000,
           current_count INTEGER DEFAULT 0,
           is_active BOOLEAN DEFAULT true,
+          campaign TEXT DEFAULT 'puducherry',
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
 
@@ -82,11 +83,19 @@ class Database {
         // Create indexes for better performance
         `CREATE INDEX IF NOT EXISTS idx_scans_group_id ON scans(group_id)`,
         `CREATE INDEX IF NOT EXISTS idx_scans_time ON scans(scan_time)`,
-        `CREATE INDEX IF NOT EXISTS idx_groups_active ON groups(is_active)`
+        `CREATE INDEX IF NOT EXISTS idx_groups_active ON groups(is_active)`,
+        `CREATE INDEX IF NOT EXISTS idx_groups_campaign ON groups(campaign)`
       ];
 
       for (const query of queries) {
         await this.run(query);
+      }
+
+      // Migration: Add campaign column if it doesn't exist (for existing databases)
+      try {
+        await this.db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS campaign TEXT DEFAULT 'puducherry'`);
+      } catch (e) {
+        // Column might already exist, ignore error
       }
     } else {
       const queries = [
@@ -98,6 +107,7 @@ class Database {
           capacity INTEGER DEFAULT 1000,
           current_count INTEGER DEFAULT 0,
           is_active BOOLEAN DEFAULT 1,
+          campaign TEXT DEFAULT 'puducherry',
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
 
@@ -123,11 +133,29 @@ class Database {
         // Create indexes for better performance
         `CREATE INDEX IF NOT EXISTS idx_scans_group_id ON scans(group_id)`,
         `CREATE INDEX IF NOT EXISTS idx_scans_time ON scans(scan_time)`,
-        `CREATE INDEX IF NOT EXISTS idx_groups_active ON groups(is_active)`
+        `CREATE INDEX IF NOT EXISTS idx_groups_active ON groups(is_active)`,
+        `CREATE INDEX IF NOT EXISTS idx_groups_campaign ON groups(campaign)`
       ];
 
-      for (const query of queries) {
+      // Run table creation queries first (without campaign index)
+      const tableQueries = queries.filter(q => !q.includes('idx_groups_campaign'));
+      for (const query of tableQueries) {
         await this.run(query);
+      }
+
+      // Migration: Add campaign column if it doesn't exist (for existing databases)
+      try {
+        await this.run(`ALTER TABLE groups ADD COLUMN campaign TEXT DEFAULT 'puducherry'`);
+        console.log('Added campaign column to existing database');
+      } catch (e) {
+        // Column might already exist, ignore error
+      }
+
+      // Now create the campaign index after ensuring column exists
+      try {
+        await this.run(`CREATE INDEX IF NOT EXISTS idx_groups_campaign ON groups(campaign)`);
+      } catch (e) {
+        // Index might already exist
       }
     }
 
@@ -225,7 +253,15 @@ class Database {
   }
 
   // Group operations
-  async getActiveGroups() {
+  async getActiveGroups(campaign = null) {
+    if (campaign) {
+      const sql = this.isPostgres
+        ? 'SELECT * FROM groups WHERE is_active = true AND campaign = $1 ORDER BY current_count ASC'
+        : 'SELECT * FROM groups WHERE is_active = 1 AND campaign = ? ORDER BY current_count ASC';
+      return this.isPostgres
+        ? (await this.db.query(sql, [campaign])).rows
+        : this.all(sql, [campaign]);
+    }
     const sql = this.isPostgres
       ? 'SELECT * FROM groups WHERE is_active = true ORDER BY current_count ASC'
       : 'SELECT * FROM groups WHERE is_active = 1 ORDER BY current_count ASC';
@@ -236,26 +272,41 @@ class Database {
     return this.get('SELECT * FROM groups WHERE id = ?', [id]);
   }
 
-  async getAllGroups() {
-    return this.all('SELECT * FROM groups ORDER BY created_at DESC');
+  async getAllGroups(campaign = null) {
+    if (campaign) {
+      return this.all('SELECT * FROM groups WHERE campaign = ? ORDER BY created_at DESC', [campaign]);
+    }
+    return this.all('SELECT * FROM groups ORDER BY campaign ASC, created_at DESC');
   }
 
-  async addGroup(name, whatsappLink, capacity) {
+  async getCampaigns() {
+    const sql = 'SELECT DISTINCT campaign FROM groups ORDER BY campaign ASC';
+    const results = await this.all(sql);
+    return results.map(r => r.campaign);
+  }
+
+  async addGroup(name, whatsappLink, capacity, campaign = 'puducherry') {
     if (this.isPostgres) {
       const result = await this.db.query(
-        'INSERT INTO groups (name, whatsapp_link, capacity) VALUES ($1, $2, $3) RETURNING id',
-        [name, whatsappLink, capacity]
+        'INSERT INTO groups (name, whatsapp_link, capacity, campaign) VALUES ($1, $2, $3, $4) RETURNING id',
+        [name, whatsappLink, capacity, campaign]
       );
       return { id: result.rows[0].id };
     } else {
       return this.run(
-        'INSERT INTO groups (name, whatsapp_link, capacity) VALUES (?, ?, ?)',
-        [name, whatsappLink, capacity]
+        'INSERT INTO groups (name, whatsapp_link, capacity, campaign) VALUES (?, ?, ?, ?)',
+        [name, whatsappLink, capacity, campaign]
       );
     }
   }
 
-  async updateGroup(id, name, whatsappLink, capacity, isActive) {
+  async updateGroup(id, name, whatsappLink, capacity, isActive, campaign = null) {
+    if (campaign !== null) {
+      return this.run(
+        'UPDATE groups SET name = ?, whatsapp_link = ?, capacity = ?, is_active = ?, campaign = ? WHERE id = ?',
+        [name, whatsappLink, capacity, isActive, campaign, id]
+      );
+    }
     return this.run(
       'UPDATE groups SET name = ?, whatsapp_link = ?, capacity = ?, is_active = ? WHERE id = ?',
       [name, whatsappLink, capacity, isActive, id]
