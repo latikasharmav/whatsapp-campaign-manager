@@ -1,82 +1,252 @@
-# WhatsApp Campaign Manager - Experience Log
+# WhatsApp Campaign Manager - Experience & Knowledge Base
 
-## 2026-01-10: Multi-Campaign Support Added
+> **CRITICAL: READ THIS FILE COMPLETELY BEFORE MAKING ANY CHANGES TO THIS PROJECT**
 
-### What was done
-Added multi-campaign support to allow managing multiple campaigns (Puducherry, Tamil Nadu, etc.) from a single system without affecting existing QR codes.
+---
 
-### Key Changes
+## What This App Does
 
-1. **Database Schema** (`database.js`)
-   - Added `campaign` column to `groups` table with default value 'puducherry'
-   - Added migration to add column to existing databases
-   - Updated queries: `getActiveGroups(campaign)`, `getAllGroups(campaign)`, `addGroup()`, `updateGroup()`, `getCampaigns()`
+This is a **WhatsApp Group Redirect System** for political campaigns (currently used by Congress Party in Puducherry and Tamil Nadu).
 
-2. **Server Routes** (`server.js`)
-   - Created shared `handleJoin(req, res, campaign)` function
-   - `/join` - backward compatible, defaults to 'puducherry'
-   - `/join/:campaign` - new route for other campaigns (e.g., `/join/tamilnadu`)
-   - Updated admin endpoints to support campaign filtering
-   - Updated QR code generation to accept campaign parameter
+### How It Works
+1. User scans a QR code printed on marketing materials (posters, pamphlets, etc.)
+2. QR code points to a URL like `https://domain.com/join` or `https://domain.com/join/tamilnadu`
+3. Server finds an active WhatsApp group with available capacity
+4. User is redirected to the WhatsApp group invite link
+5. System tracks scans (analytics) and increments member count
 
-3. **Admin Panel** (`public/admin.html`, `public/script.js`)
-   - Added campaign filter dropdown in Groups page
-   - Added campaign selection in group creation/edit modal
-   - Added campaign selection in QR code generator
-   - Campaign badges shown on group cards
+### Business Value
+- Physical QR codes are printed on **expensive marketing materials** (posters, banners, pamphlets)
+- Once printed, **QR codes CANNOT be changed** - the URL must remain stable forever
+- The system allows managing multiple groups behind a single URL
+- When one group fills up, new scans automatically go to the next available group
 
-4. **Styles** (`public/style.css`)
-   - Added campaign badge styles (different colors for different campaigns)
-   - Added header controls styling
-   - Added QR campaign label styling
+---
 
-### Important URLs
-- Puducherry (existing): `https://domain.com/join` (unchanged)
-- Tamil Nadu (new): `https://domain.com/join/tamilnadu`
+## Architecture Overview
+
+### Tech Stack
+- **Backend**: Node.js + Express.js
+- **Database**: PostgreSQL (on Railway)
+- **Hosting**: Railway.app
+- **Frontend**: Vanilla HTML/CSS/JS (admin panel)
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `server.js` | Express server, routes, authentication, join logic |
+| `database.js` | Database abstraction layer (PostgreSQL with SQLite fallback code) |
+| `public/admin.html` | Admin panel UI |
+| `public/script.js` | Admin panel JavaScript |
+| `public/style.css` | Styles |
+
+### Database Tables
+1. **groups** - WhatsApp groups with name, invite link, capacity, current_count, campaign
+2. **scans** - Every QR scan is logged (IP, user agent, timestamp, group)
+3. **settings** - Key-value store for app settings
+
+### URL Structure
+| Campaign | URL | Notes |
+|----------|-----|-------|
+| Puducherry | `/join` | DEFAULT - backward compatible, never change! |
+| Tamil Nadu | `/join/tamilnadu` | New campaigns use `/join/:campaign` pattern |
+| Future campaigns | `/join/:campaignname` | Lowercase, no spaces |
+
+---
+
+## How to Scale (Add New Campaigns)
+
+### Adding a New Campaign (e.g., Karnataka)
+
+**NO CODE CHANGES TO `server.js` or `database.js` NEEDED!**
+
+The system is already designed to handle any campaign name dynamically:
+
+1. **Admin Panel HTML** (`public/admin.html`):
+   - Add option to `campaignFilter` dropdown (Groups page, line ~170)
+   - Add option to `dashboardCampaignFilter` dropdown (Dashboard, line ~69)
+   - Add option to `groupCampaign` dropdown (Add/Edit modal, line ~267)
+   - Add option to `qrCampaign` dropdown (QR Code page, line ~226)
+
+2. **Styles** (`public/style.css`):
+   - Add badge color class: `.campaign-badge.karnataka { background: #color; }`
+
+3. **That's it!** The backend automatically handles:
+   - New `/join/karnataka` route works immediately
+   - Groups can be added with campaign="karnataka"
+   - QR codes generate the correct URL
+   - Analytics filter by campaign
+
+### Example: Adding Karnataka Campaign
+
+```html
+<!-- In admin.html, add to ALL campaign dropdowns: -->
+<option value="karnataka">Karnataka</option>
+```
+
+```css
+/* In style.css: */
+.campaign-badge.karnataka {
+  background: #FF5722;
+}
+```
+
+**URL will be**: `https://domain.com/join/karnataka`
+
+---
+
+## Production URLs (Railway)
+
+| Item | URL |
+|------|-----|
+| Puducherry QR | `https://whatsapp-campaign-manager-production.up.railway.app/join` |
+| Tamil Nadu QR | `https://whatsapp-campaign-manager-production.up.railway.app/join/tamilnadu` |
+| Admin Panel | `https://whatsapp-campaign-manager-production.up.railway.app/admin.html` |
+| Health Check | `https://whatsapp-campaign-manager-production.up.railway.app/health` |
+
+**Admin Password**: Check Railway Dashboard → Variables → `ADMIN_PASSWORD`
+
+---
+
+## Railway Configuration
+
+### Required Environment Variables
+| Variable | Purpose | Example |
+|----------|---------|---------|
+| `DATABASE_URL` | PostgreSQL connection string | Auto-set by Railway if linked |
+| `ADMIN_PASSWORD` | Admin panel password | `SecureAdmin2024` |
+| `SESSION_SECRET` | Session encryption key | Random string |
+| `DOMAIN_URL` | Base URL for QR codes | `https://whatsapp-campaign-manager-production.up.railway.app` |
+| `NODE_ENV` | Environment | `production` |
+| `RATE_LIMIT_MINUTES` | Rate limit window | `1` |
+| `RATE_LIMIT_MAX_REQUESTS` | Max requests per window | `10` |
+
+### How DATABASE_URL Works
+The app checks for `DATABASE_URL` environment variable:
+- If present: Uses PostgreSQL
+- If absent: Falls back to SQLite (local file `database.sqlite`)
+
+**On Railway**: PostgreSQL is a separate service. The `DATABASE_URL` variable must be linked from the Postgres service to the app service. This is done in Railway Dashboard → App → Variables → Add Variable → Select from dropdown.
+
+---
+
+## CRITICAL WARNINGS
+
+### 1. NEVER Change the `/join` URL
+The `/join` route is used by Puducherry QR codes that are ALREADY PRINTED on marketing materials. Changing this breaks all existing QR codes.
+
+### 2. NEVER Assume Database State
+Before making changes, ALWAYS verify:
+- What database is actually being used (check Railway logs for "Connected to PostgreSQL" or "Connected to SQLite")
+- What data exists (check admin panel)
+- Export data BEFORE any risky operations
+
+### 3. Railway Auto-Deploys on Git Push
+Every `git push` to main triggers automatic deployment. Changes go live immediately.
+
+### 4. SQLite is for Local Development Only
+The SQLite fallback exists ONLY for local development when DATABASE_URL is not set. On Railway, PostgreSQL should ALWAYS be used. SQLite data on Railway would be lost on every deploy because Railway containers are ephemeral.
+
+---
+
+## Mistakes Made & Lessons Learned
+
+### 2026-01-10: Claude's Incorrect Database Diagnosis
+
+**What Happened:**
+- Claude (AI assistant) incorrectly diagnosed that SQLite was being used as fallback on Railway
+- Claimed that DATABASE_URL was "not linked" to the Railway service
+- Made changes in Railway Variables attempting to "fix" DATABASE_URL
+- This may have disrupted the existing PostgreSQL connection
+- Result: Puducherry group data was lost
+
+**The Truth:**
+- PostgreSQL was ALREADY properly configured and working
+- SQLite fallback was NOT being used on production
+- The data loss cause needs further investigation
+- The assistant should have VERIFIED the actual state before making changes
+
+**Lesson Learned:**
+1. **NEVER assume** - Always verify the current state before diagnosing problems
+2. **Check Railway logs** - They show which database is connected
+3. **Export data first** - Before any database-related changes, export existing data
+4. **Don't touch what's working** - If the system was working, investigate before changing configuration
+5. **Ask before acting** - When unsure about critical infrastructure, ask the user
+
+### How to Verify Database Connection
+1. Check Railway logs after deploy - look for "Connected to PostgreSQL database" or "Connected to SQLite database"
+2. Hit the `/health` endpoint - it shows database status
+3. Check Railway Variables - `DATABASE_URL` should show `${{Postgres.DATABASE_URL}}` if linked
+
+---
+
+## Multi-Campaign Feature (Added 2026-01-10)
+
+### What Was Added
+- Campaign column in groups table (default: 'puducherry')
+- `/join/:campaign` dynamic route
+- Campaign filter in admin panel (Groups page)
+- Campaign filter in dashboard
+- Campaign selection in group modal
+- Campaign-specific QR code generation
 
 ### Backward Compatibility
-- Existing Puducherry QR codes continue to work
-- All existing groups automatically assigned to 'puducherry' campaign
-- No changes needed to printed marketing materials
+- `/join` route still works and defaults to 'puducherry'
+- Existing Puducherry QR codes are NOT affected
+- All existing groups were migrated to 'puducherry' campaign
 
-### Adding New Campaigns
-To add a new campaign:
-1. Add option to dropdowns in `admin.html` (campaignFilter, groupCampaign, qrCampaign)
-2. Add CSS class for the campaign badge color in `style.css`
-3. That's it! The system will handle the rest automatically.
+---
 
-### Lessons Learned
-- Always run column migrations BEFORE creating indexes on those columns
-- Use default values for new columns to handle existing data gracefully
-- Keep backward compatibility by preserving existing URL endpoints
+## Local Development
 
-## 2026-01-10: DATABASE_URL Fix on Railway
+```bash
+# Install dependencies
+npm install
 
-### Problem
-After deploying multi-campaign changes, the `/join/tamilnadu` route showed "Groups Full" even though groups existed before. Investigation revealed:
-- PostgreSQL service existed on Railway but **DATABASE_URL was NOT linked** to the app service
-- App fell back to SQLite, which gets **wiped on every Railway deploy**
-- All previous data was lost
+# Create .env file with:
+ADMIN_PASSWORD=test123
+SESSION_SECRET=localsecret
+DOMAIN_URL=http://localhost:3000
+NODE_ENV=development
+RATE_LIMIT_MINUTES=1
+RATE_LIMIT_MAX_REQUESTS=100
+# DATABASE_URL not set = uses SQLite locally
 
-### Fix
-1. Navigated to Railway → whatsapp-campaign-manager → Variables
-2. Clicked "Add Variable" and selected `DATABASE_URL` from Postgres service
-3. Value was automatically set to `${{Postgres.DATABASE_URL}}`
-4. Clicked Deploy to redeploy with the new variable
+# Run
+npm start
+```
 
-### Result
-- App now connects to PostgreSQL (persistent storage)
-- Data is preserved across deploys
-- Groups need to be re-added (previous SQLite data is gone)
+---
 
-### Important Lesson
-**ALWAYS verify DATABASE_URL is linked** when deploying to Railway with PostgreSQL. Without it:
-- App silently falls back to SQLite
-- Data is lost on each deploy
-- No obvious error message indicates the problem
+## Checklist Before Making Changes
 
-### Current URLs
-- Puducherry: `https://whatsapp-campaign-manager-production.up.railway.app/join`
-- Tamil Nadu: `https://whatsapp-campaign-manager-production.up.railway.app/join/tamilnadu`
-- Admin Panel: `https://whatsapp-campaign-manager-production.up.railway.app/admin.html`
-- Admin Password: Check Railway Variables → ADMIN_PASSWORD
+- [ ] Read this entire file
+- [ ] Check current database status (Railway logs or /health endpoint)
+- [ ] Export current data via Admin Panel → Analytics → Export Data
+- [ ] Understand what the user is asking for
+- [ ] Verify if existing QR codes/URLs will be affected
+- [ ] Test locally if possible
+- [ ] Make changes incrementally
+- [ ] Verify production after deploy
+
+---
+
+## Git Workflow
+
+```bash
+git add .
+git commit -m "feat: description"
+git push origin main
+# Railway auto-deploys in ~1-2 minutes
+```
+
+---
+
+## Contact & Credentials
+
+See `CLAUDE.md` for hosting/GitHub credentials (Railway, Hostinger, etc.)
+
+---
+
+*Last Updated: 2026-01-10*
+*Updated By: Claude AI (after making mistakes and learning from them)*

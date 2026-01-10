@@ -165,7 +165,14 @@ class Database {
   // Run a query
   async run(sql, params = []) {
     if (this.isPostgres) {
-      const result = await this.db.query(sql, params);
+      // Convert ? placeholders to $1, $2, etc.
+      let pgSql = sql;
+      let paramIndex = 1;
+      while (pgSql.includes('?')) {
+        pgSql = pgSql.replace('?', `$${paramIndex}`);
+        paramIndex++;
+      }
+      const result = await this.db.query(pgSql, params);
       return { id: result.rows[0]?.id, changes: result.rowCount };
     } else {
       return new Promise((resolve, reject) => {

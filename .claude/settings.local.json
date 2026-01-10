@@ -42,7 +42,9 @@
       "mcp__playwright__browser_console_messages",
       "Bash(git -C:*)",
       "WebSearch",
-      "Bash(node -e:*)"
+      "Bash(node -e:*)",
+      "mcp__playwright__browser_select_option",
+      "WebFetch(domain:whatsapp-campaign-manager-production.up.railway.app)"
     ],
     "deny": [],
     "ask": []
