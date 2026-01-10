@@ -64,7 +64,16 @@
       <div id="dashboardPage" class="page active">
         <div class="page-header">
           <h2>Dashboard</h2>
-          <button id="refreshStats" class="btn btn-secondary">🔄 Refresh</button>
+          <div class="header-controls">
+            <div class="form-group" style="margin: 0; min-width: 150px;">
+              <select id="dashboardCampaignFilter" class="form-control">
+                <option value="">All Campaigns</option>
+                <option value="puducherry">Puducherry</option>
+                <option value="tamilnadu">Tamil Nadu</option>
+              </select>
+            </div>
+            <button id="refreshStats" class="btn btn-secondary">🔄 Refresh</button>
+          </div>
         </div>
 
         <!-- Stats Cards -->

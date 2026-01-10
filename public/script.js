@@ -3,6 +3,7 @@ let currentPage = 'dashboard';
 let groups = [];
 let charts = {};
 let currentCampaignFilter = '';
+let dashboardCampaignFilter = '';
 
 // DOM Elements
 const loginScreen = document.getElementById('loginScreen');
@@ -90,10 +91,16 @@ function setupEventListeners() {
   document.getElementById('generateQR')?.addEventListener('click', generateQRCode);
   document.getElementById('downloadQR')?.addEventListener('click', downloadQRCode);
 
-  // Campaign filter
+  // Campaign filter for groups
   document.getElementById('campaignFilter')?.addEventListener('change', (e) => {
     currentCampaignFilter = e.target.value;
     loadGroups();
+  });
+
+  // Campaign filter for dashboard
+  document.getElementById('dashboardCampaignFilter')?.addEventListener('change', (e) => {
+    dashboardCampaignFilter = e.target.value;
+    loadDashboard();
   });
 
   // Export data
@@ -188,7 +195,10 @@ function navigateTo(page) {
 // Load dashboard
 async function loadDashboard() {
   try {
-    const response = await fetch('/admin/stats');
+    const url = dashboardCampaignFilter
+      ? `/admin/stats?campaign=${dashboardCampaignFilter}`
+      : '/admin/stats';
+    const response = await fetch(url);
     const data = await response.json();
 
     updateDashboardStats(data.stats);

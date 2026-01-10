@@ -358,8 +358,9 @@ app.get('/admin/check-auth', (req, res) => {
 // Dashboard stats
 app.get('/admin/stats', requireAuth, async (req, res) => {
   try {
-    const stats = await db.getDashboardStats();
-    const recentScans = await db.getRecentScans(10);
+    const { campaign } = req.query;
+    const stats = await db.getDashboardStats(campaign || null);
+    const recentScans = await db.getRecentScans(10, campaign || null);
     res.json({ stats, recentScans });
   } catch (error) {
     res.status(500).json({ error: error.message });

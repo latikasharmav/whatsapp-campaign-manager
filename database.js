@@ -350,9 +350,20 @@ class Database {
     );
   }
 
-  async getRecentScans(limit = 10) {
+  async getRecentScans(limit = 10, campaign = null) {
+    if (campaign) {
+      return this.all(
+        `SELECT s.*, g.name as group_name, g.campaign
+         FROM scans s
+         LEFT JOIN groups g ON s.group_id = g.id
+         WHERE g.campaign = ?
+         ORDER BY s.scan_time DESC
+         LIMIT ?`,
+        [campaign, limit]
+      );
+    }
     return this.all(
-      `SELECT s.*, g.name as group_name
+      `SELECT s.*, g.name as group_name, g.campaign
        FROM scans s
        LEFT JOIN groups g ON s.group_id = g.id
        ORDER BY s.scan_time DESC
@@ -368,12 +379,30 @@ class Database {
     );
   }
 
-  async getTotalScans() {
+  async getTotalScans(campaign = null) {
+    if (campaign) {
+      const result = await this.get(
+        `SELECT COUNT(*) as count FROM scans s
+         JOIN groups g ON s.group_id = g.id
+         WHERE g.campaign = ?`,
+        [campaign]
+      );
+      return result.count || 0;
+    }
     const result = await this.get('SELECT COUNT(*) as count FROM scans');
     return result.count || 0;
   }
 
-  async getUniqueIPs() {
+  async getUniqueIPs(campaign = null) {
+    if (campaign) {
+      const result = await this.get(
+        `SELECT COUNT(DISTINCT s.ip_address) as count FROM scans s
+         JOIN groups g ON s.group_id = g.id
+         WHERE g.campaign = ?`,
+        [campaign]
+      );
+      return result.count || 0;
+    }
     const result = await this.get('SELECT COUNT(DISTINCT ip_address) as count FROM scans');
     return result.count || 0;
   }
@@ -467,25 +496,33 @@ class Database {
   }
 
   // Analytics
-  async getDashboardStats() {
-    const totalGroups = await this.get('SELECT COUNT(*) as count FROM groups');
+  async getDashboardStats(campaign = null) {
+    const campaignFilter = campaign ? ' AND campaign = ?' : '';
+    const campaignFilterNoAnd = campaign ? ' WHERE campaign = ?' : '';
+    const params = campaign ? [campaign] : [];
+
+    const totalGroupsSql = campaign
+      ? 'SELECT COUNT(*) as count FROM groups WHERE campaign = ?'
+      : 'SELECT COUNT(*) as count FROM groups';
+    const totalGroups = await this.get(totalGroupsSql, params);
+
     const activeGroupsSql = this.isPostgres
-      ? 'SELECT COUNT(*) as count FROM groups WHERE is_active = true'
-      : 'SELECT COUNT(*) as count FROM groups WHERE is_active = 1';
-    const activeGroups = await this.get(activeGroupsSql);
+      ? `SELECT COUNT(*) as count FROM groups WHERE is_active = true${campaignFilter}`
+      : `SELECT COUNT(*) as count FROM groups WHERE is_active = 1${campaignFilter}`;
+    const activeGroups = await this.get(activeGroupsSql, params);
 
     const totalCapacitySql = this.isPostgres
-      ? 'SELECT SUM(capacity) as total FROM groups WHERE is_active = true'
-      : 'SELECT SUM(capacity) as total FROM groups WHERE is_active = 1';
-    const totalCapacity = await this.get(totalCapacitySql);
+      ? `SELECT SUM(capacity) as total FROM groups WHERE is_active = true${campaignFilter}`
+      : `SELECT SUM(capacity) as total FROM groups WHERE is_active = 1${campaignFilter}`;
+    const totalCapacity = await this.get(totalCapacitySql, params);
 
     const currentMembersSql = this.isPostgres
-      ? 'SELECT SUM(current_count) as total FROM groups WHERE is_active = true'
-      : 'SELECT SUM(current_count) as total FROM groups WHERE is_active = 1';
-    const currentMembers = await this.get(currentMembersSql);
+      ? `SELECT SUM(current_count) as total FROM groups WHERE is_active = true${campaignFilter}`
+      : `SELECT SUM(current_count) as total FROM groups WHERE is_active = 1${campaignFilter}`;
+    const currentMembers = await this.get(currentMembersSql, params);
 
-    const totalScans = await this.getTotalScans();
-    const uniqueIPs = await this.getUniqueIPs();
+    const totalScans = await this.getTotalScans(campaign);
+    const uniqueIPs = await this.getUniqueIPs(campaign);
 
     return {
       totalGroups: totalGroups.count,

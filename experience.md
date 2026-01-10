@@ -49,3 +49,34 @@ To add a new campaign:
 - Always run column migrations BEFORE creating indexes on those columns
 - Use default values for new columns to handle existing data gracefully
 - Keep backward compatibility by preserving existing URL endpoints
+
+## 2026-01-10: DATABASE_URL Fix on Railway
+
+### Problem
+After deploying multi-campaign changes, the `/join/tamilnadu` route showed "Groups Full" even though groups existed before. Investigation revealed:
+- PostgreSQL service existed on Railway but **DATABASE_URL was NOT linked** to the app service
+- App fell back to SQLite, which gets **wiped on every Railway deploy**
+- All previous data was lost
+
+### Fix
+1. Navigated to Railway → whatsapp-campaign-manager → Variables
+2. Clicked "Add Variable" and selected `DATABASE_URL` from Postgres service
+3. Value was automatically set to `${{Postgres.DATABASE_URL}}`
+4. Clicked Deploy to redeploy with the new variable
+
+### Result
+- App now connects to PostgreSQL (persistent storage)
+- Data is preserved across deploys
+- Groups need to be re-added (previous SQLite data is gone)
+
+### Important Lesson
+**ALWAYS verify DATABASE_URL is linked** when deploying to Railway with PostgreSQL. Without it:
+- App silently falls back to SQLite
+- Data is lost on each deploy
+- No obvious error message indicates the problem
+
+### Current URLs
+- Puducherry: `https://whatsapp-campaign-manager-production.up.railway.app/join`
+- Tamil Nadu: `https://whatsapp-campaign-manager-production.up.railway.app/join/tamilnadu`
+- Admin Panel: `https://whatsapp-campaign-manager-production.up.railway.app/admin.html`
+- Admin Password: Check Railway Variables → ADMIN_PASSWORD
