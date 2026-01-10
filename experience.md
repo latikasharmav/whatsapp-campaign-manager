@@ -178,6 +178,55 @@ The SQLite fallback exists ONLY for local development when DATABASE_URL is not s
 2. Hit the `/health` endpoint - it shows database status
 3. Check Railway Variables - `DATABASE_URL` should show `${{Postgres.DATABASE_URL}}` if linked
 
+### 2026-01-10: PostgreSQL Placeholder Bug (ACTUAL BUG FOUND)
+
+**Symptom:**
+- `/join` (Puducherry) worked fine
+- `/join/tamilnadu` gave 500 error "Something went wrong"
+
+**Root Cause:**
+The `run()` method in `database.js` was NOT converting `?` placeholders to PostgreSQL's `$1, $2, ...` format, while `get()` and `all()` methods DID convert them.
+
+This caused INSERT/UPDATE queries (like `addScan()`, `incrementGroupCount()`) to fail with PostgreSQL syntax errors.
+
+**The Bug (database.js line ~166):**
+```javascript
+// BEFORE - Missing placeholder conversion
+async run(sql, params = []) {
+  if (this.isPostgres) {
+    const result = await this.db.query(sql, params);  // BUG: ? not converted!
+    return { id: result.rows[0]?.id, changes: result.rowCount };
+  }
+  ...
+}
+```
+
+**The Fix:**
+```javascript
+// AFTER - Added placeholder conversion
+async run(sql, params = []) {
+  if (this.isPostgres) {
+    // Convert ? placeholders to $1, $2, etc.
+    let pgSql = sql;
+    let paramIndex = 1;
+    while (pgSql.includes('?')) {
+      pgSql = pgSql.replace('?', `$${paramIndex}`);
+      paramIndex++;
+    }
+    const result = await this.db.query(pgSql, params);
+    return { id: result.rows[0]?.id, changes: result.rowCount };
+  }
+  ...
+}
+```
+
+**Why Puducherry Worked Initially:**
+The error only triggered when `addScan()` was called AFTER finding a group. Initial testing may have had no groups, so the "Groups Full" page was shown (no addScan call = no error).
+
+**Lesson Learned:**
+- When adding PostgreSQL support to a SQLite-based app, ensure ALL database methods handle placeholder conversion consistently
+- Test ALL code paths, not just the happy path
+
 ---
 
 ## Multi-Campaign Feature (Added 2026-01-10)
