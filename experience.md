@@ -130,22 +130,101 @@ The app checks for `DATABASE_URL` environment variable:
 
 ---
 
+## QR CODE URL REGISTRY (ACTIVE - DO NOT MODIFY)
+
+> **These URLs are PERMANENTLY LOCKED. They are printed on physical marketing materials.**
+
+| Campaign | QR Code URL | Status | Notes |
+|----------|-------------|--------|-------|
+| Puducherry | `/join` | **ACTIVE - LOCKED** | Printed on marketing materials since 2025 |
+| Tamil Nadu | `/join/tamilnadu` | **ACTIVE - LOCKED** | New QR codes printed Jan 2026 |
+
+### Rules for QR Code URLs
+1. **NEVER rename, remove, or modify existing QR code routes**
+2. **NEVER change the URL pattern** - `/join` must always work for Puducherry
+3. **New campaigns get NEW URLs** - they don't share existing URLs
+4. **Test new URLs before printing QR codes** - once printed, URL is permanent
+
+---
+
+## ANALYTICS DATA PROTECTION
+
+### What Analytics Data Exists
+The `scans` table stores EVERY QR code scan with:
+- Timestamp
+- Which group was assigned
+- IP address
+- User agent (device type)
+- Referrer
+
+**This data is VALUABLE** - it shows campaign performance over time.
+
+### How to Protect Analytics Data
+
+#### BEFORE Any Changes:
+1. **Export data**: Admin Panel → Analytics → Export Data
+2. **Save the JSON file** to a safe location (Google Drive, local backup)
+3. **Verify export** contains all scans and groups
+
+#### NEVER Do These:
+- Delete the PostgreSQL database on Railway
+- Drop tables without backing up
+- Reset or recreate the database
+- Change DATABASE_URL without understanding implications
+
+#### Safe Operations (Won't Lose Data):
+- Adding new groups (INSERT only)
+- Adding new campaigns (new groups with different campaign value)
+- Updating group capacity or status
+- Code deployments (data is in PostgreSQL, not in code)
+
+#### Risky Operations (ALWAYS BACKUP FIRST):
+- Any database migration
+- Changing Railway PostgreSQL service
+- Modifying database schema
+- Any operation involving DATABASE_URL
+
+### Weekly Backup Recommendation
+1. Every week, login to Admin Panel
+2. Go to Analytics → Export Data
+3. Save the JSON file with date: `backup-2026-01-10.json`
+4. Store in Google Drive or secure location
+
+---
+
 ## CRITICAL WARNINGS
 
-### 1. NEVER Change the `/join` URL
-The `/join` route is used by Puducherry QR codes that are ALREADY PRINTED on marketing materials. Changing this breaks all existing QR codes.
+### 1. NEVER Change Existing QR Code URLs
+```
+/join           → Puducherry (LOCKED FOREVER)
+/join/tamilnadu → Tamil Nadu (LOCKED FOREVER)
+```
+These URLs are printed on physical materials. Changing them = breaking all printed QR codes.
 
-### 2. NEVER Assume Database State
+### 2. NEVER Delete or Reset the Database
+The PostgreSQL database contains ALL analytics history. Deleting it loses:
+- All scan history
+- Member count tracking
+- Campaign performance data
+
+### 3. NEVER Assume Database State
 Before making changes, ALWAYS verify:
 - What database is actually being used (check Railway logs for "Connected to PostgreSQL" or "Connected to SQLite")
 - What data exists (check admin panel)
 - Export data BEFORE any risky operations
 
-### 3. Railway Auto-Deploys on Git Push
+### 4. Railway Auto-Deploys on Git Push
 Every `git push` to main triggers automatic deployment. Changes go live immediately.
 
-### 4. SQLite is for Local Development Only
+### 5. SQLite is for Local Development Only
 The SQLite fallback exists ONLY for local development when DATABASE_URL is not set. On Railway, PostgreSQL should ALWAYS be used. SQLite data on Railway would be lost on every deploy because Railway containers are ephemeral.
+
+### 6. Adding New Campaigns is SAFE
+Adding a new campaign (like Karnataka) does NOT affect existing campaigns:
+- Puducherry data stays intact
+- Tamil Nadu data stays intact
+- New campaign gets its own URL (`/join/karnataka`)
+- All analytics are preserved
 
 ---
 
