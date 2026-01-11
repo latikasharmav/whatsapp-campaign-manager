@@ -321,6 +321,9 @@ class Database {
   }
 
   async deleteGroup(id) {
+    // First delete associated scans (foreign key constraint)
+    await this.run('DELETE FROM scans WHERE group_id = ?', [id]);
+    // Then delete the group
     return this.run('DELETE FROM groups WHERE id = ?', [id]);
   }
 
